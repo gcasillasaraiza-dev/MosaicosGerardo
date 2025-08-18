@@ -72,6 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
   imageInput.onchange = e => {
     document.getElementById('analysisResults').style.display = 'none';
     document.getElementById('analysisList').innerHTML = '';
+    document.getElementById('usageTableBody').innerHTML = '';
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
