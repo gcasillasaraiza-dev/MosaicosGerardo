@@ -134,6 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return { r: Math.round(r / px), g: Math.round(g / px), b: Math.round(b / px) };
   }
 
+  /*
   async function getBitmap(path, forceGray = false) {
     if (tileCache.has(path)) return tileCache.get(path);
     try {
@@ -161,7 +162,66 @@ document.addEventListener('DOMContentLoaded', () => {
       console.warn('Error al cargar', path);
       return null;
     }
+  }*/
+
+  async function getBitmap(path, forceGray = false) {
+    if (tileCache.has(path)) return tileCache.get(path);
+
+    return new Promise(resolve => {
+      function tryLoad(url, tryWithoutSuffix = false) {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+
+        img.onload = () => {
+          if (!forceGray) {
+            tileCache.set(path, img);
+            resolve(img);
+            return;
+          }
+
+          // Procesar manualmente en escala de grises
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+
+          const data = ctx.getImageData(0, 0, img.width, img.height);
+          for (let i = 0; i < data.data.length; i += 4) {
+            const y = 0.299 * data.data[i] + 0.587 * data.data[i + 1] + 0.114 * data.data[i + 2];
+            data.data[i] = data.data[i + 1] = data.data[i + 2] = y;
+          }
+          ctx.putImageData(data, 0, 0);
+
+          const grayImg = new Image();
+          grayImg.src = canvas.toDataURL();
+          tileCache.set(path, grayImg);
+          resolve(grayImg);
+        };
+
+        img.onerror = () => {
+          console.warn("Error al cargar:", url);
+
+          // Segundo intento: quitar "_1" antes de la extensión
+          if (!tryWithoutSuffix) {
+            const newUrl = url.replace(/_1(\.\w+)$/, '$1'); // elimina solo el _1 antes de .jpg/.png/etc
+            if (newUrl !== url) {
+              console.log("Reintentando sin _1:", newUrl);
+              tryLoad(newUrl, true);
+              return;
+            }
+          }
+
+          resolve(null); // falló definitivamente
+        };
+
+        img.src = url;
+      }
+
+      tryLoad(path);
+    });
   }
+
 
   function findUniqueTile(avg) {
     const method = distanceSelect.value;
