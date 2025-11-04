@@ -168,9 +168,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (tileCache.has(path)) return tileCache.get(path);
 
     function wrap(url) {
-      const clean = decodeURIComponent(url); // quita doble encoding si lo hubiera
+      // 1) Si viene doble encodeada (%2520 → %20), limpiamos
+      let clean = decodeURIComponent(url);
+
+      // 2) Convertimos a una URL segura pero válida
+      // encodeURI mantiene / : %  intactos → NO rompe rutas ni %20
+      clean = encodeURI(clean);
+
+      // 3) PERO encodeURI no codifica &, así que lo protegemos
+      clean = clean.replace(/&/g, "%26");
+
       return `https://mosaicos.gcasillasaraiza.workers.dev/?url=${clean}`;
     }
+
 
 
     // URLs a intentar
@@ -215,7 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         img.onerror = () => {
-          console.warn("Falló V1:", url, "→ probando siguiente...");
+          console.warn("Falló V2:", url, "→ probando siguiente...");
           tryLoad(index + 1);
         };
 
