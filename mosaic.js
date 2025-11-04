@@ -163,38 +163,42 @@ document.addEventListener('DOMContentLoaded', () => {
       return null;
     }
   }*/
-
   async function getBitmap(path, forceGray = false) {
     if (tileCache.has(path)) return tileCache.get(path);
 
+    // Envuelve URL para enviar por el Worker (evita CORS)
     function wrap(url) {
-      // 1) Si viene doble encodeada (%2520 → %20), limpiamos
-      let clean = decodeURIComponent(url);
-
-      // 2) Convertimos a una URL segura pero válida
-      // encodeURI mantiene / : %  intactos → NO rompe rutas ni %20
-      clean = encodeURI(clean);
-
-      // 3) PERO encodeURI no codifica &, así que lo protegemos
-      clean = clean.replace(/&/g, "%26");
-
+      let clean = decodeURIComponent(url);      // arregla %2520 → %20
+      clean = encodeURI(clean);                 // conserva / y %
+      clean = clean.replace(/&/g, "%26");       // protege & reales
       return `https://mosaicos.gcasillasaraiza.workers.dev/?url=${clean}`;
     }
 
+    // Extraer base y extensión (ej: "Africa 003" y "jpg")
+    const match = path.match(/^(.*?)(?:_1)?\.(jpg|jpeg|png|webp|gif)$/i);
+    if (!match) {
+      console.warn("Formato no reconocido:", path);
+      return null;
+    }
 
+    const base = match[1];  // ruta sin _1 ni extensión
+    const ext = match[2];
+    const extLower = ext.toLowerCase();
+    const extUpper = ext.toUpperCase();
 
-    // URLs a intentar
-    const original = path;
-    const noSuffix = path.replace(/_1(\.\w+)$/, "$1");
-
-    const attempts = [wrap(original)];
-    if (noSuffix !== original) attempts.push(wrap(noSuffix));
+    // Variantes a intentar en orden
+    const attempts = [
+      wrap(`${base}_1.${extLower}`), // con _1 minúscula
+      wrap(`${base}.${extLower}`),   // sin _1 minúscula
+      wrap(`${base}_1.${extUpper}`), // con _1 MAYÚSCULA
+      wrap(`${base}.${extUpper}`)    // sin _1 MAYÚSCULA
+    ];
 
     return new Promise(resolve => {
-      function tryLoad(index) {
-        if (index >= attempts.length) return resolve(null);
+      function tryLoad(i) {
+        if (i >= attempts.length) return resolve(null);
 
-        const url = attempts[index];
+        const url = attempts[i];
         const img = new Image();
         img.crossOrigin = "anonymous";
 
@@ -205,16 +209,17 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
           }
 
-          const canvas = document.createElement('canvas');
+          // Convertir a gris manualmente
+          const canvas = document.createElement("canvas");
           canvas.width = img.width;
           canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
+          const ctx = canvas.getContext("2d");
           ctx.drawImage(img, 0, 0);
 
           const data = ctx.getImageData(0, 0, img.width, img.height);
-          for (let i = 0; i < data.data.length; i += 4) {
-            const y = 0.299 * data.data[i] + 0.587 * data.data[i + 1] + 0.114 * data.data[i + 2];
-            data.data[i] = data.data[i + 1] = data.data[i + 2] = y;
+          for (let p = 0; p < data.data.length; p += 4) {
+            const y = data.data[p] * 0.299 + data.data[p + 1] * 0.587 + data.data[p + 2] * 0.114;
+            data.data[p] = data.data[p + 1] = data.data[p + 2] = y;
           }
           ctx.putImageData(data, 0, 0);
 
@@ -225,8 +230,8 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         img.onerror = () => {
-          console.warn("Falló V2:", url, "→ probando siguiente...");
-          tryLoad(index + 1);
+          console.warn(`❌ Falló: ${url}\n→ Probando siguiente...`);
+          tryLoad(i + 1);
         };
 
         img.src = url;
@@ -235,6 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
       tryLoad(0);
     });
   }
+
 
 
 
