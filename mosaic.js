@@ -168,8 +168,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (tileCache.has(path)) return tileCache.get(path);
 
     function wrap(url) {
-      return `https://mosaicos.gcasillasaraiza.workers.dev/?url=${encodeURIComponent(url)}`;
+      const clean = decodeURIComponent(url); // quita doble encoding si lo hubiera
+      return `https://mosaicos.gcasillasaraiza.workers.dev/?url=${clean}`;
     }
+
 
     // URLs a intentar
     const original = path;
@@ -213,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         img.onerror = () => {
-          console.warn("Falló:", url, "→ probando siguiente...");
+          console.warn("Falló V1:", url, "→ probando siguiente...");
           tryLoad(index + 1);
         };
 
