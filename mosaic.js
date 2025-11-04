@@ -167,8 +167,22 @@ document.addEventListener('DOMContentLoaded', () => {
   async function getBitmap(path, forceGray = false) {
     if (tileCache.has(path)) return tileCache.get(path);
 
+    function wrap(url) {
+      return `https://mosaicos.gcasillasaraiza.workers.dev/?url=${encodeURIComponent(url)}`;
+    }
+
+    // URLs a intentar
+    const original = path;
+    const noSuffix = path.replace(/_1(\.\w+)$/, "$1");
+
+    const attempts = [wrap(original)];
+    if (noSuffix !== original) attempts.push(wrap(noSuffix));
+
     return new Promise(resolve => {
-      function tryLoad(url, tryWithoutSuffix = false) {
+      function tryLoad(index) {
+        if (index >= attempts.length) return resolve(null);
+
+        const url = attempts[index];
         const img = new Image();
         img.crossOrigin = "anonymous";
 
@@ -185,56 +199,31 @@ document.addEventListener('DOMContentLoaded', () => {
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0);
 
-          let data;
-          try {
-            data = ctx.getImageData(0, 0, img.width, img.height);
-          } catch (e) {
-            console.warn("Canvas tainted:", url);
-
-            if (!tryWithoutSuffix) {
-              const newUrl = url.replace(/_1(\.\w+)$/, '$1');
-              if (newUrl !== url) {
-                console.log("Reintentando sin _1:", newUrl);
-                tryLoad(newUrl, true);
-                return;
-              }
-            }
-
-            resolve(null);
-            return;
-          }
-
+          const data = ctx.getImageData(0, 0, img.width, img.height);
           for (let i = 0; i < data.data.length; i += 4) {
             const y = 0.299 * data.data[i] + 0.587 * data.data[i + 1] + 0.114 * data.data[i + 2];
             data.data[i] = data.data[i + 1] = data.data[i + 2] = y;
           }
           ctx.putImageData(data, 0, 0);
 
-          const grayImg = new Image();
-          grayImg.src = canvas.toDataURL();
-          tileCache.set(path, grayImg);
-          resolve(grayImg);
+          const gray = new Image();
+          gray.src = canvas.toDataURL();
+          tileCache.set(path, gray);
+          resolve(gray);
         };
 
         img.onerror = () => {
-          console.warn("Error al cargar V2:", url);
-          if (!tryWithoutSuffix) {
-            const newUrl = url.replace(/_1(\.\w+)$/, '$1');
-            if (newUrl !== url) {
-              console.log("Reintentando sin _1:", newUrl);
-              tryLoad(newUrl, true);
-              return;
-            }
-          }
-          resolve(null);
+          console.warn("Falló:", url, "→ probando siguiente...");
+          tryLoad(index + 1);
         };
 
-        img.src = "https://cors.isomorphic-git.org/" + url;
+        img.src = url;
       }
 
-      tryLoad(path);
+      tryLoad(0);
     });
   }
+
 
 
 
