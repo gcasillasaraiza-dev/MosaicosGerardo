@@ -217,7 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         img.onerror = () => {
-          console.warn("Error al cargar V1:", url);
+          console.warn("Error al cargar V2:", url);
           if (!tryWithoutSuffix) {
             const newUrl = url.replace(/_1(\.\w+)$/, '$1');
             if (newUrl !== url) {
@@ -229,7 +229,7 @@ document.addEventListener('DOMContentLoaded', () => {
           resolve(null);
         };
 
-        img.src = url;
+        img.src = "https://cors.isomorphic-git.org/" + url;
       }
 
       tryLoad(path);
