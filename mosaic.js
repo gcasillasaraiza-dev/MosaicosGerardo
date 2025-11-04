@@ -179,14 +179,31 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
           }
 
-          // Procesar manualmente en escala de grises
           const canvas = document.createElement('canvas');
           canvas.width = img.width;
           canvas.height = img.height;
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0);
 
-          const data = ctx.getImageData(0, 0, img.width, img.height);
+          let data;
+          try {
+            data = ctx.getImageData(0, 0, img.width, img.height);
+          } catch (e) {
+            console.warn("Canvas tainted:", url);
+
+            if (!tryWithoutSuffix) {
+              const newUrl = url.replace(/_1(\.\w+)$/, '$1');
+              if (newUrl !== url) {
+                console.log("Reintentando sin _1:", newUrl);
+                tryLoad(newUrl, true);
+                return;
+              }
+            }
+
+            resolve(null);
+            return;
+          }
+
           for (let i = 0; i < data.data.length; i += 4) {
             const y = 0.299 * data.data[i] + 0.587 * data.data[i + 1] + 0.114 * data.data[i + 2];
             data.data[i] = data.data[i + 1] = data.data[i + 2] = y;
@@ -200,19 +217,16 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         img.onerror = () => {
-          console.warn("Error al cargar:", url);
-
-          // Segundo intento: quitar "_1" antes de la extensión
+          console.warn("Error al cargar V1:", url);
           if (!tryWithoutSuffix) {
-            const newUrl = url.replace(/_1(\.\w+)$/, '$1'); // elimina solo el _1 antes de .jpg/.png/etc
+            const newUrl = url.replace(/_1(\.\w+)$/, '$1');
             if (newUrl !== url) {
               console.log("Reintentando sin _1:", newUrl);
               tryLoad(newUrl, true);
               return;
             }
           }
-
-          resolve(null); // falló definitivamente
+          resolve(null);
         };
 
         img.src = url;
@@ -221,6 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
       tryLoad(path);
     });
   }
+
 
 
   function findUniqueTile(avg) {
